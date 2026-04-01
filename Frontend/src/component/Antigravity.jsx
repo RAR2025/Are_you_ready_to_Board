@@ -1,6 +1,6 @@
 /* eslint-disable react/no-unknown-property */
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
 const AntigravityInner = ({
@@ -27,6 +27,22 @@ const AntigravityInner = ({
   const lastMousePos = useRef({ x: 0, y: 0 });
   const lastMouseMoveTime = useRef(0);
   const virtualMouse = useRef({ x: 0, y: 0 });
+  const globalPointer = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleMouseMove = event => {
+      const width = window.innerWidth || 1;
+      const height = window.innerHeight || 1;
+      globalPointer.current.x = (event.clientX / width) * 2 - 1;
+      globalPointer.current.y = -(event.clientY / height) * 2 + 1;
+      lastMouseMoveTime.current = Date.now();
+    };
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, []);
 
   const particles = useMemo(() => {
     const temp = [];
@@ -74,16 +90,18 @@ const AntigravityInner = ({
     if (!mesh) return;
 
     const { viewport: v, pointer: m } = state;
+    const pointerX = Math.abs(m.x) > 0.0001 ? m.x : globalPointer.current.x;
+    const pointerY = Math.abs(m.y) > 0.0001 ? m.y : globalPointer.current.y;
 
-    const mouseDist = Math.sqrt(Math.pow(m.x - lastMousePos.current.x, 2) + Math.pow(m.y - lastMousePos.current.y, 2));
+    const mouseDist = Math.sqrt(Math.pow(pointerX - lastMousePos.current.x, 2) + Math.pow(pointerY - lastMousePos.current.y, 2));
 
     if (mouseDist > 0.001) {
       lastMouseMoveTime.current = Date.now();
-      lastMousePos.current = { x: m.x, y: m.y };
+      lastMousePos.current = { x: pointerX, y: pointerY };
     }
 
-    let destX = (m.x * v.width) / 2;
-    let destY = (m.y * v.height) / 2;
+    let destX = (pointerX * v.width) / 2;
+    let destY = (pointerY * v.height) / 2;
 
     if (autoAnimate && Date.now() - lastMouseMoveTime.current > 2000) {
       const time = state.clock.getElapsedTime();

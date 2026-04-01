@@ -1,11 +1,9 @@
-import { useState } from 'react'
-// import './App.css'
-import Home from './pages/Home'
-import LandingPage from './pages/LandingPage'
+import HomeLanding from './pages/HomeLanding'
+
 function App() {
   return (
     <>
-      <LandingPage/>
+      <HomeLanding />
     </>
   )
 }
