@@ -1,4 +1,3 @@
-/* eslint-disable react/no-unknown-property */
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
@@ -181,6 +180,7 @@ const AntigravityInner = ({
       {particleShape === 'sphere' && <sphereGeometry args={[0.2, 16, 16]} />}
       {particleShape === 'box' && <boxGeometry args={[0.3, 0.3, 0.3]} />}
       {particleShape === 'tetrahedron' && <tetrahedronGeometry args={[0.3]} />}
+      {/* @ts-expect-error react-three-fiber material typings can miss color in some version combos */}
       <meshBasicMaterial color={color} />
     </instancedMesh>
   );
