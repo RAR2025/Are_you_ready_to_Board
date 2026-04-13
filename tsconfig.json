@@ -8,18 +8,17 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
-    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "paths": {
       "@/*": [
         "./*"
       ],
       "@shared-types": [
-        "packages/shared-types/src/index.ts"
+        "./packages/shared-types/src/index.ts"
       ],
       "@shared-types/*": [
-        "packages/shared-types/src/*"
+        "./packages/shared-types/src/*"
       ]
-    },
-    "outDir": "dist"
+    }
   }
 }

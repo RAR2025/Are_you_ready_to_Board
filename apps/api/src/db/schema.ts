@@ -61,3 +61,32 @@ export const vectorEmbeddings = pgTable('vector_embeddings', {
   documentId: integer('document_id').notNull().references(() => documents.id),
   embedding: vector('embedding', { dimensions: 1536 }).notNull(),
 });
+
+// Quiz Results table
+export const quizResults = pgTable('quiz_results', {
+  id: serial('id').primaryKey(),
+  employeeId: integer('employee_id').notNull().references(() => employees.id),
+  score: integer('score').notNull(),
+  totalQuestions: integer('total_questions').notNull(),
+  topics: jsonb('topics'),
+  takenAt: timestamp('taken_at').defaultNow().notNull(),
+});
+
+// Chat Interactions table
+export const chatInteractions = pgTable('chat_interactions', {
+  id: serial('id').primaryKey(),
+  employeeId: integer('employee_id').notNull().references(() => employees.id),
+  agentId: varchar('agent_id', { length: 255 }).notNull(),
+  messageCount: integer('message_count').notNull().default(0),
+  sessionStart: timestamp('session_start').defaultNow().notNull(),
+  sessionEnd: timestamp('session_end'),
+});
+
+// Onboarding Checklists table
+export const onboardingChecklists = pgTable('onboarding_checklists', {
+  id: serial('id').primaryKey(),
+  employeeId: integer('employee_id').notNull().references(() => employees.id),
+  items: jsonb('items'),
+  completedItems: jsonb('completed_items'),
+  generatedAt: timestamp('generated_at').defaultNow().notNull(),
+});
