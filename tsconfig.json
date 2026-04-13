@@ -19,6 +19,7 @@
       "@shared-types/*": [
         "packages/shared-types/src/*"
       ]
-    }
+    },
+    "outDir": "dist"
   }
 }
