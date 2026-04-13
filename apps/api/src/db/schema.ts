@@ -1,5 +1,5 @@
-import { pgTable, serial, text, varchar, integer, foreignKey, boolean, timestamp, jsonb } from 'drizzle-orm/pg-core';
-import { vector } from 'drizzle-orm-pgvector';
+import { pgTable, serial, text, varchar, integer, timestamp, jsonb } from 'drizzle-orm/pg-core';
+import { vector } from './vector';
 
 // Organizations table
 export const organizations = pgTable('organizations', {
@@ -8,13 +8,15 @@ export const organizations = pgTable('organizations', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
-// Users table
+// Updated Users table
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   organizationId: integer('organization_id').notNull().references(() => organizations.id),
   email: varchar('email', { length: 255 }).notNull(),
-  password: varchar('password', { length: 255 }).notNull(),
+  firebaseUid: varchar('firebase_uid', { length: 128 }).notNull().unique(),
+  role: varchar('role', { length: 50 }).notNull().default('employee'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
 // Departments table

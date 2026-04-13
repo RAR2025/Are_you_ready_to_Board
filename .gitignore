@@ -34,8 +34,7 @@ Thumbs.db
 .cache/
 .eslintcache
 
-
-myplan.txt
-PS03/
-OnBoard AI.docx
+# Firebase credentials (sensitive - never commit)
+apps/api/config/firebase-service-account.json
+apps/api/config/*.json
 

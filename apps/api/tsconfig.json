@@ -14,5 +14,5 @@
       "@shared-types/*": ["../../packages/shared-types/src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "src/types"]
 }

@@ -1,0 +1,212 @@
+I can see the document content is already in my context. Let me note that only the DOCX was attached — no code files were shared. I'll analyze the idea doc thoroughly and build everything you need.Now I have everything I need. Let me build this out comprehensively.Now here's the complete breakdown — folder structure, phases, modules, and AI-assisted commit prompts.
+
+---
+
+## Folder structure
+
+```
+onboard-ai/
+├── apps/
+│   ├── web/                        # React frontend (Vite + React 18)
+│   │   ├── src/
+│   │   │   ├── app/                # Root layout, router, providers
+│   │   │   ├── features/
+│   │   │   │   ├── auth/           # Login, signup, role routing
+│   │   │   │   ├── org/            # System designer dashboard
+│   │   │   │   ├── hr/             # HR portal views
+│   │   │   │   ├── employee/       # Employee onboarding + chat
+│   │   │   │   └── code-graph/     # 3D repo visualization
+│   │   │   ├── components/         # Shared UI components
+│   │   │   ├── hooks/              # Shared hooks
+│   │   │   ├── lib/                # API client, firebase init
+│   │   │   └── stores/             # Zustand global state
+│   │   └── package.json
+│   │
+│   └── api/                        # Express.js backend (Node 20)
+│       ├── src/
+│       │   ├── routes/
+│       │   │   ├── auth.ts
+│       │   │   ├── org.ts
+│       │   │   ├── hr.ts
+│       │   │   ├── employee.ts
+│       │   │   └── agent-proxy.ts  # Forwards to Python agents
+│       │   ├── middleware/
+│       │   │   ├── authenticate.ts
+│       │   │   ├── authorize.ts    # Role-based guard
+│       │   │   └── rateLimiter.ts
+│       │   ├── services/           # Business logic
+│       │   ├── db/
+│       │   │   ├── schema.ts       # Drizzle ORM schema
+│       │   │   └── migrations/
+│       │   ├── queue/              # BullMQ jobs
+│       │   └── lib/
+│       └── package.json
+│
+├── agents/                         # Python FastAPI services
+│   ├── shared/
+│   │   ├── embeddings.py           # Shared embedding logic
+│   │   ├── vector_store.py         # pgvector wrapper
+│   │   └── llm_client.py           # OpenAI/Claude API wrapper
+│   ├── agent1_knowledge/
+│   │   ├── main.py                 # FastAPI app
+│   │   ├── rag_pipeline.py
+│   │   ├── ingestion/
+│   │   │   ├── repo_crawler.py     # GitHub API crawler
+│   │   │   ├── doc_parser.py       # PDF/DOCX parser
+│   │   │   └── embedder.py
+│   │   └── requirements.txt
+│   ├── agent2_onboarder/
+│   │   ├── main.py
+│   │   ├── checklist_generator.py
+│   │   └── requirements.txt
+│   └── agent3_quizzer/
+│       ├── main.py
+│       ├── quiz_generator.py
+│       ├── stats_tracker.py
+│       └── requirements.txt
+│
+├── infra/
+│   ├── docker/
+│   │   ├── Dockerfile.api
+│   │   ├── Dockerfile.agent1
+│   │   ├── Dockerfile.agent2
+│   │   └── Dockerfile.agent3
+│   └── docker-compose.yml
+│
+├── .github/
+│   └── workflows/
+│       ├── ci.yml
+│       └── deploy.yml
+│
+└── packages/
+    └── shared-types/               # Shared TypeScript types (npm workspace)
+```
+
+**Tech stack additions I'd recommend:**
+- **Drizzle ORM** over raw SQL — type-safe, works perfectly with Neon (serverless Postgres)
+- **Zustand** for frontend state — far lighter than Redux for this use case
+- **React Three Fiber** for the 3D code graph (Phase 3)
+- **Unstructured.io** for parsing diverse doc formats in the ingestion pipeline
+- **LangChain (Python)** for RAG chain orchestration in Agent 1
+- **Neon** for serverless Postgres — free tier, branches per PR
+- **Fly.io** for Python agents (Docker-native, cheap)
+- **BullMQ + Redis** for async ingestion jobs so re-training doesn't block HTTP responses
+
+---
+
+## Phases, modules & commit prompts
+
+---
+
+### Phase 0 — Foundation `branch: feat/foundation`
+*Must be done first; all other branches depend on this.*
+
+#### Module 0.1 — Monorepo & tooling
+> **Commit 1** — `chore: initialize monorepo with npm workspaces and Vite`
+> **Prompt:** "Set up a monorepo with npm workspaces containing three packages: `apps/web` (Vite + React 18 + TypeScript), `apps/api` (Node 20 + Express + TypeScript), and `packages/shared-types`. Configure root `tsconfig.json` with path aliases. Add ESLint + Prettier config shared across all packages. Add a root `dev` script that starts both `apps/web` and `apps/api` in parallel using `concurrently`."
+
+> **Commit 2** — `chore: add Docker Compose for local dev services`
+> **Prompt:** "Write a `docker-compose.yml` that spins up: PostgreSQL 16 with the `pgvector` extension enabled, Redis 7, and a local S3-compatible bucket using MinIO. Expose standard ports. Add a `db:migrate` npm script in `apps/api` that runs Drizzle migrations against the local Postgres instance."
+
+#### Module 0.2 — Database schema
+> **Commit 3** — `feat(api): define core Drizzle ORM schema`
+> **Prompt:** "Using Drizzle ORM, define the following PostgreSQL tables: `organizations` (id, name, unique_org_id, created_at), `users` (id, org_id FK, role enum: 'system_designer'|'hr'|'employee', firebase_uid, email, created_at), `departments` (id, org_id FK, name), `employees` (id, user_id FK, department_id FK, grade enum: 'junior'|'intermediate'|'expert', created_at), `repositories` (id, org_id FK, github_url, name, last_indexed_at), `tech_stack` (id, org_id FK, name, description), `documents` (id, org_id FK, file_url, file_type, uploaded_at). Add a `vector_embeddings` table with a `pgvector` column (1536 dimensions) referencing the source document or repo chunk. Generate the initial migration."
+
+> **Commit 4** — `feat(api): add employee stats and quiz results tables`
+> **Prompt:** "Add to the Drizzle schema: `quiz_results` (id, employee_id FK, score, total_questions, topics JSON, taken_at), `chat_interactions` (id, employee_id FK, agent_id, message_count, session_start, session_end), `onboarding_checklists` (id, employee_id FK, items JSON, completed_items JSON, generated_at). Generate and run migration."
+
+---
+
+### Phase 1 — Auth + Org dashboard `branch: feat/phase1-org`
+*Runs in parallel with Phase 2 after Module 0 is merged.*
+
+#### Module 1.1 — Authentication
+> **Commit 5** — `feat(api): Firebase Auth middleware with role-based guards`
+> **Prompt:** "In `apps/api/src/middleware/authenticate.ts`, write Express middleware that verifies a Firebase ID token from the `Authorization: Bearer` header using the Firebase Admin SDK. Attach the decoded token and the user's role (looked up from the `users` Postgres table) to `req.user`. Create an `authorize(roles: Role[])` middleware factory that throws a 403 if `req.user.role` is not in the allowed list."
+
+> **Commit 6** — `feat(web): auth flow with role-based redirect`
+> **Prompt:** "Build the auth feature in `apps/web/src/features/auth/`. Create a single sign-in page using Firebase Auth (email/password). On successful login, call `GET /api/auth/me` to fetch the user's role from the backend. Redirect to `/org` for system_designer, `/hr` for hr, and `/employee` for employee roles. Use React Router v6 with a `ProtectedRoute` component that reads role from a Zustand auth store. Also build a sign-up page for organizations that calls `POST /api/org/register` which creates an org record, a system_designer user, and returns a unique org ID."
+
+#### Module 1.2 — System designer dashboard
+> **Commit 7** — `feat(web): system designer dashboard layout`
+> **Prompt:** "Build the system designer dashboard at `apps/web/src/features/org/`. It should have a clean single-page layout (no sidebar scrolling) with four cards visible above the fold: 'Repositories' (count + add button), 'Tech Stack' (count + manage button), 'Documents' (count + upload button), 'HR Managers' (count + manage button). Use Tailwind CSS. Make each card navigate to a dedicated sub-page within the org feature."
+
+> **Commit 8** — `feat(api,web): repository CRUD with GitHub URL validation`
+> **Prompt:** "Backend: create `POST /api/org/repos`, `DELETE /api/org/repos/:id`, `GET /api/org/repos` endpoints in `apps/api`. Validate that the GitHub URL is reachable using the GitHub REST API (unauthenticated check). Store in the `repositories` table. Frontend: build a repo list page in the org feature with an 'Add repository' modal (URL input + name), a list of current repos with delete buttons, and a 'Sync' button per repo that triggers a job via `POST /api/org/repos/:id/sync`."
+
+> **Commit 9** — `feat(api,web): tech stack and document management`
+> **Prompt:** "Backend: `POST/DELETE/GET /api/org/techstack` and `POST/DELETE/GET /api/org/documents` (documents upload to S3/Firebase Storage). Frontend: build tech stack management (add tag-style chips for each technology + optional description) and document management (drag-and-drop file upload for PDF/DOCX, file list with delete). Both should show on the org dashboard cards with live counts."
+
+> **Commit 10** — `feat(api,web): HR manager management`
+> **Prompt:** "Backend: `POST /api/org/hr` creates a Firebase user and stores them in `users` table with role 'hr', linked to the org. `DELETE /api/org/hr/:id` removes them. `GET /api/org/hr` lists all HR users for the org. Frontend: HR management sub-page in the org dashboard — a list of HR managers with name, email, and a remove button. An 'Add HR' modal with name + email fields that sends an invite email via Firebase Auth."
+
+---
+
+### Phase 2 — HR portal + Employee onboarding `branch: feat/phase2-hr-onboarding`
+
+#### Module 2.1 — HR portal
+> **Commit 11** — `feat(web): HR dashboard with department and employee management`
+> **Prompt:** "Build `apps/web/src/features/hr/`. The HR dashboard should show: department list (create/delete departments), employee list per department (create employee with name, email, department, grade). 'Create employee' calls `POST /api/hr/employees` which creates a Firebase Auth user, sends them a welcome email, and stores them in the `employees` table. Display a stats summary card per employee showing quiz scores and chat interaction counts fetched from the backend."
+
+> **Commit 12** — `feat(api): employee stats aggregation endpoint`
+> **Prompt:** "Create `GET /api/hr/employees/:id/stats` that returns: total chat sessions, average messages per session, quiz attempts (score, date, topics), onboarding checklist completion percentage. Aggregate from `chat_interactions`, `quiz_results`, and `onboarding_checklists` tables. Also create `GET /api/hr/dashboard/summary` that returns aggregate stats for all employees in the org."
+
+#### Module 2.2 — Agent 2: Onboarding checklist
+> **Commit 13** — `feat(agents): Agent 2 FastAPI service scaffold`
+> **Prompt:** "Create `agents/agent2_onboarder/main.py` as a FastAPI app. Define a `POST /generate-checklist` endpoint that accepts `{employee_id, department, grade, org_id}`. The handler should call Agent 1's knowledge endpoint to retrieve relevant tech stack and tooling info for this org, then use the OpenAI API (or Anthropic Claude API) with a structured prompt to generate a JSON checklist of setup tasks tailored to the employee's department and grade level. Store the checklist in the `onboarding_checklists` table via the Node API. Add a Dockerfile."
+
+> **Commit 14** — `feat(web): employee first-login onboarding flow`
+> **Prompt:** "In `apps/web/src/features/employee/`, detect first login (no checklist exists for this employee). Show a welcoming onboarding screen. Call the API which triggers Agent 2. Show a loading state ('Preparing your setup guide…'). Then render the checklist as interactive checkboxes grouped by category (e.g. 'Development tools', 'Access & accounts'). As the employee checks items off, `PATCH /api/employee/checklist` updates `completed_items`. When all items are checked, automatically transition to the quiz flow."
+
+#### Module 2.3 — Agent 3: Adaptive quiz
+> **Commit 15** — `feat(agents): Agent 3 quiz generation with grade-aware prompting`
+> **Prompt:** "Create `agents/agent3_quizzer/main.py` as a FastAPI app. `POST /generate-quiz` accepts `{org_id, department, grade, checklist_topics}`. Use the org's tech stack (fetched from Agent 1 context) and the employee's grade to generate a 10-question multiple choice quiz with a structured prompt. Junior employees get conceptual questions; intermediate get applied questions; experts get architectural/trade-off questions. Return JSON: `{questions: [{id, text, options: [A,B,C,D], correct_option}]}`. Never return correct answers to the frontend — store them server-side in a quiz session."
+
+> **Commit 16** — `feat(web,api): quiz UI and result tracking`
+> **Prompt:** "Frontend: build a quiz page in the employee feature. Show one question at a time with a progress bar. On submit, call `POST /api/employee/quiz/submit` with answers. Backend: compare against stored correct answers, calculate score, save to `quiz_results`, trigger a stats update on the HR dashboard via a BullMQ job. Frontend: show the employee their result with a breakdown (correct/incorrect per topic) and a summary message from Agent 3."
+
+---
+
+### Phase 3 — Daily use + 3D graph `branch: feat/phase3-daily-use`
+
+#### Module 3.1 — Agent 1: RAG knowledge chatbot
+> **Commit 17** — `feat(agents): Agent 1 RAG pipeline with pgvector`
+> **Prompt:** "Build `agents/agent1_knowledge/rag_pipeline.py`. Use LangChain's `ConversationalRetrievalChain` with a pgvector retriever (cosine similarity search over `vector_embeddings`). Filter embeddings by `org_id` so orgs never see each other's data. The chain must: (1) check if the queried technology is in the org's tech stack — if not, reply with 'This technology is not implemented in your company.' (2) otherwise retrieve top-5 relevant chunks and answer with source citations. Expose via `POST /chat` endpoint accepting `{org_id, employee_id, message, history}`."
+
+> **Commit 18** — `feat(agents): ingestion pipeline — repo crawler and embedder`
+> **Prompt:** "Build `agents/agent1_knowledge/ingestion/repo_crawler.py` that uses the GitHub API to clone/fetch file trees of repos stored in the `repositories` table. Parse code files (JS, TS, Python, etc.) and split into chunks using LangChain's `RecursiveCharacterTextSplitter`. Build `embedder.py` that takes chunks, calls OpenAI's `text-embedding-3-small`, and upserts into the `vector_embeddings` pgvector table. Build `doc_parser.py` using `unstructured` library to extract text from PDF/DOCX files. All three are triggered by BullMQ jobs from the Node API."
+
+> **Commit 19** — `feat(web): employee chat interface`
+> **Prompt:** "Build the main employee chat page in `apps/web/src/features/employee/Chat.tsx`. Full-height chat layout with a message list and input box. Messages stream from Agent 1 via SSE (server-sent events). Show source file citations as expandable chips under each AI message. If the agent says a technology is not implemented, show a distinct 'Not in stack' badge. On each chat session end (user closes/navigates), call `POST /api/employee/interaction/end` to log the session. Use Zustand to persist conversation history within the session."
+
+#### Module 3.2 — 3D code graph
+> **Commit 20** — `feat(api): GitHub repository graph data endpoint`
+> **Prompt:** "Create `GET /api/org/repos/:id/graph` which uses the GitHub API to return a dependency graph of the repository: nodes are files/modules, edges are import relationships. Parse `import`/`require` statements from JS/TS files and `import`/`from` in Python files. Return JSON `{nodes: [{id, path, type, size}], edges: [{source, target}]}`. Limit to top 200 nodes by file size for performance."
+
+> **Commit 21** — `feat(web): 3D repository visualization with React Three Fiber`
+> **Prompt:** "Build `apps/web/src/features/code-graph/CodeGraph.tsx` using React Three Fiber and `@react-three/drei`. Fetch the graph data from the API. Render nodes as spheres (size = file size, color = file type: blue for components, green for utils, amber for services). Render edges as thin lines between spheres. Use `@react-three/fiber`'s `ForceGraph3D` layout or implement a simple force-directed layout with `d3-force-3d`. On node click, show a floating panel with the file path and a button 'Ask about this file' which pre-fills the chat with the filename. Add orbit controls for rotation and zoom."
+
+---
+
+### Phase 4 — Polish & deployment `branch: feat/phase4-deploy`
+
+#### Module 4.1 — CI/CD
+> **Commit 22** — `chore: GitHub Actions CI pipeline`
+> **Prompt:** "Create `.github/workflows/ci.yml` that runs on every PR: (1) installs dependencies in all packages, (2) runs TypeScript type-check on `apps/api` and `apps/web`, (3) runs ESLint, (4) runs database migrations against a test Neon branch, (5) runs integration tests for all API endpoints using Vitest + supertest. Create `.github/workflows/deploy.yml` that deploys `apps/web` to Vercel, `apps/api` to Railway, and each Python agent to Fly.io on merge to `main`."
+
+> **Commit 23** — `feat(api): webhook for GitHub repo auto-sync`
+> **Prompt:** "Add `POST /api/webhooks/github` which receives GitHub push events. Validate the `X-Hub-Signature-256` header. On a push to the default branch, enqueue a BullMQ job to re-index only the changed files (from the webhook payload `commits[].modified`). This means Agent 1 stays current without full re-crawls. Update `last_indexed_at` on the repository record."
+
+---
+
+## Branch strategy
+
+| Branch | Depends on | Can start |
+|---|---|---|
+| `feat/foundation` | nothing | Day 1 |
+| `feat/phase1-org` | foundation merged | After commit 4 |
+| `feat/phase2-hr-onboarding` | foundation merged | After commit 4 (parallel with phase1) |
+| `feat/phase3-daily-use` | phase1 + phase2 merged | After both |
+| `feat/phase4-deploy` | phase3 merged | Final |
+
+Phases 1 and 2 can run **simultaneously on separate branches** since they touch different feature areas (`/org` vs `/hr` and `/employee`). The only shared dependency is the database schema from Phase 0.

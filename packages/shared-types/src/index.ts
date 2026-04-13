@@ -8,3 +8,5 @@ export interface OnboardingStep {
   title: string
   description: string
 }
+
+export type Role = 'system_designer' | 'hr' | 'employee'

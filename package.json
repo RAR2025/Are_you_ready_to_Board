@@ -15,7 +15,8 @@
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "db:migrate": "npm run db:migrate --workspace @onboard/api"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
@@ -30,5 +31,8 @@
     "globals": "^17.4.0",
     "prettier": "^3.6.2",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "tsconfig-paths": "^4.2.0"
   }
 }
