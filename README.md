@@ -225,16 +225,24 @@ docker compose -f infra/docker-compose.yml up -d
 
 ### 3) Run applications
 
+Run both web and API together from the root:
+
+```bash
+npm run dev
+```
+
+Run individually if needed.
+
 Frontend:
 
 ```bash
-npm run dev --workspace apps/web
+npm run dev --workspace @onboard/web
 ```
 
 API:
 
 ```bash
-npm run dev --workspace apps/api
+npm run dev --workspace @onboard/api
 ```
 
 Agents (example with uvicorn):
@@ -295,9 +303,9 @@ LLM_MODEL=gpt-4.1-mini
 Suggested baseline commands:
 
 ```bash
-npm run lint --workspaces
-npm run test --workspaces
-npm run build --workspaces
+npm run lint
+npm run typecheck
+npm run build
 ```
 
 Python quality checks (recommended):
