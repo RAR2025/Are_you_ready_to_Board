@@ -12,18 +12,23 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "db:migrate": "tsx src/db/migrate.ts"
   },
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
     "@onboard/shared-types": "1.0.0",
-    "express": "^5.2.1"
+    "dotenv": "^16.6.1",
+    "drizzle-orm": "^0.45.2",
+    "express": "^5.2.1",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.4",
     "@types/node": "^22.16.5",
+    "@types/pg": "^8.15.5",
     "tsx": "^4.20.5"
   }
 }
