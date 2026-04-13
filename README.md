@@ -6,21 +6,21 @@ Onboard AI helps companies convert scattered docs, policies, architecture notes,
 
 ## Table of Contents
 
-1. Project Vision
-2. Core Use Cases
-3. Architecture Overview
-4. Monorepo Structure
-5. Service Responsibilities
-6. Data and Integration Model
-7. Request Flow by Role
-8. Local Development Setup
-9. Environment Variables
-10. Build, Test, and Quality Gates
-11. Deployment and Infrastructure
-12. Security and Compliance Notes
-13. Contribution Guidelines
-14. Troubleshooting
-15. Roadmap Ideas
+1. [Project Vision](#project-vision)
+2. [Core Use Cases](#core-use-cases)
+3. [Architecture Overview](#architecture-overview)
+4. [Monorepo Structure](#monorepo-structure)
+5. [Service Responsibilities](#service-responsibilities)
+6. [Data and Integration Model](#data-and-integration-model)
+7. [Request Flow by Role](#request-flow-by-role)
+8. [Local Development Setup](#local-development-setup)
+9. [Environment Variables](#environment-variables)
+10. [Build, Test, and Quality Gates](#build-test-and-quality-gates)
+11. [Deployment and Infrastructure](#deployment-and-infrastructure)
+12. [Security and Compliance Notes](#security-and-compliance-notes)
+13. [Contribution Guidelines](#contribution-guidelines)
+14. [Troubleshooting](#troubleshooting)
+15. [Roadmap Ideas](#roadmap-ideas)
 
 ## Project Vision
 
