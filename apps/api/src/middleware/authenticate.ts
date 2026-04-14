@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { firebaseAuth } from '../lib/firebase-admin';
-import { db } from '../db/client';
-import { users } from '../db/schema';
+import { firebaseAuth } from '../lib/firebase-admin.js';
+import { db } from '../db/client.js';
+import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {

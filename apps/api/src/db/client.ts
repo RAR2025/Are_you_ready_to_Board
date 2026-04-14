@@ -5,7 +5,7 @@ import { config } from 'dotenv'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 
-import * as schema from './schema'
+import * as schema from './schema.js'
 
 const currentFile = fileURLToPath(import.meta.url)
 const currentDir = path.dirname(currentFile)

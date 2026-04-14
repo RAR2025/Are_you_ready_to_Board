@@ -29,17 +29,32 @@ const AntigravityInner = ({
   const globalPointer = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
-    const handleMouseMove = event => {
+    const updatePointer = (clientX: number, clientY: number) => {
       const width = window.innerWidth || 1;
       const height = window.innerHeight || 1;
-      globalPointer.current.x = (event.clientX / width) * 2 - 1;
-      globalPointer.current.y = -(event.clientY / height) * 2 + 1;
+      globalPointer.current.x = (clientX / width) * 2 - 1;
+      globalPointer.current.y = -(clientY / height) * 2 + 1;
       lastMouseMoveTime.current = Date.now();
     };
 
-    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    const handlePointerMove = (event: PointerEvent) => {
+      updatePointer(event.clientX, event.clientY);
+    };
+
+    const handleMouseMove = (event: MouseEvent) => {
+      updatePointer(event.clientX, event.clientY);
+    };
+
+    document.addEventListener('pointermove', handlePointerMove, { passive: true, capture: true });
+    window.addEventListener('pointermove', handlePointerMove, { passive: true, capture: true });
+    document.addEventListener('mousemove', handleMouseMove, { passive: true, capture: true });
+    window.addEventListener('mousemove', handleMouseMove, { passive: true, capture: true });
+
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('pointermove', handlePointerMove, { capture: true });
+      window.removeEventListener('pointermove', handlePointerMove, { capture: true });
+      document.removeEventListener('mousemove', handleMouseMove, { capture: true });
+      window.removeEventListener('mousemove', handleMouseMove, { capture: true });
     };
   }, []);
 

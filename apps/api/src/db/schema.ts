@@ -1,5 +1,5 @@
 import { pgTable, serial, text, varchar, integer, timestamp, jsonb } from 'drizzle-orm/pg-core';
-import { vector } from './vector';
+import { vector } from './vector.js';
 
 // Organizations table
 export const organizations = pgTable('organizations', {

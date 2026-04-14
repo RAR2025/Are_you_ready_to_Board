@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import type { Role } from '@onboard/shared-types';
+
+type Role = 'system_designer' | 'hr' | 'employee'
 
 export function authorize(allowedRoles: Role[]) {
   return (req: Request, res: Response, next: NextFunction) => {

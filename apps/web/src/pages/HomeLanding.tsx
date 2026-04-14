@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import Antigravity from "../component/Antigravity";
 import iconRoleSystemDesigner from "../assets/icon-role-system-designer.png";
 import iconRoleDeveloper from "../assets/icon-role-developer.png";
@@ -121,8 +122,12 @@ function HomeLanding() {
             <a href="#roles" className="hover:text-white transition">Roles</a>
           </nav>
           <div className="hidden items-center gap-3 md:flex">
-            <button className="btn-secondary py-2">Login</button>
-            <button className="btn-primary py-2">Get Started</button>
+            <Link to="/signin" className="btn-secondary py-2">
+              Login
+            </Link>
+            <Link to="/signup" className="btn-primary py-2">
+              Get Started
+            </Link>
           </div>
         </header>
       </div>
@@ -184,13 +189,14 @@ function HomeLanding() {
                   ))}
                 </ul>
 
-                <button
-                  className={`mt-8 font-medium transition ${
-                    index === 2 ? "text-yellow-400 hover:text-yellow-300" : "text-[#5ca3ff] hover:text-[#9b7bff]"
+                <Link
+                  to={index === 0 ? '/signup' : '/signin'}
+                  className={`mt-8 inline-block font-medium transition ${
+                    index === 2 ? 'text-yellow-400 hover:text-yellow-300' : 'text-[#5ca3ff] hover:text-[#9b7bff]'
                   }`}
                 >
-                      {role.cta} {"->"}
-                </button>
+                  {role.cta} {'->'}
+                </Link>
               </article>
             ))}
           </div>
@@ -219,7 +225,9 @@ function HomeLanding() {
             <p className="hero-subtitle mx-auto mt-4 max-w-xl text-base">
               Set up your company in under 10 minutes. No credit card needed.
             </p>
-            <button className="btn-primary mt-8">Create Your Organization</button>
+            <Link to="/signup" className="btn-primary mt-8 inline-block">
+              Create Your Organization
+            </Link>
           </div>
         </section>
       </main>
