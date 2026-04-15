@@ -27,6 +27,7 @@ export interface OrgRegisterRequest {
 
 export interface OrgRegisterResponse {
   organizationId: number
+  uniqueOrgId: string
   userId: number
   role: Role
 }

@@ -2,9 +2,9 @@ import { firebaseAuth } from '@/lib/firebase'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'
 
-export async function fetchWithAuth(input: RequestInfo, init: RequestInit = {}) {
+export async function fetchWithAuth(input: string, init: Record<string, unknown> = {}) {
   const token = await getIdToken()
-  const headers = new Headers(init.headers ?? {})
+  const headers = new Headers((init as { headers?: any }).headers ?? {})
 
   if (!token) {
     throw new Error('Not authenticated')
@@ -15,11 +15,16 @@ export async function fetchWithAuth(input: RequestInfo, init: RequestInit = {}) 
     headers.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(`${API_BASE_URL}${input}`, {
-    ...init,
-    headers,
-    credentials: 'include',
-  })
+  let response: Response
+
+  try {
+    response = await fetch(`${API_BASE_URL}${input}`, {
+      ...init,
+      headers,
+    })
+  } catch {
+    throw new Error(`Unable to reach API at ${API_BASE_URL}. Ensure the API server is running and accessible.`)
+  }
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null)

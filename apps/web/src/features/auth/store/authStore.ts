@@ -7,17 +7,18 @@ interface AuthState {
   status: 'idle' | 'loading' | 'authenticated' | 'unauthenticated'
   user: AuthUser | null
   error: string | null
-  signIn: (email: string, password: string) => Promise<AuthUser>
+  signIn: (...args: [string, string]) => Promise<AuthUser>
   signOut: () => Promise<void>
   initializeAuth: () => Promise<void>
-  registerOrg: (payload: OrgRegisterPayload) => Promise<RegisterOrganizationResponse>
+  registerOrg: (...args: [OrgRegisterPayload]) => Promise<RegisterOrganizationResponse>
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   status: 'idle',
   user: null,
   error: null,
-  signIn: async (email, password) => {
+  signIn: async (...args) => {
+    const [email, password] = args
     set({ status: 'loading', error: null })
 
     try {
@@ -53,7 +54,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ status: 'unauthenticated', user: null, error: null })
     }
   },
-  registerOrg: async (payload) => {
+  registerOrg: async (...args) => {
+    const [payload] = args
     set({ status: 'loading', error: null })
 
     try {

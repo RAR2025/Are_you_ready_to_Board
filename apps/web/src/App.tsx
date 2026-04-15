@@ -3,11 +3,16 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import HomeLanding from './pages/HomeLanding'
 import SignInPage from './features/auth/pages/SignInPage'
 import SignUpPage from './features/auth/pages/SignUpPage'
-import OrgHomePage from './features/auth/pages/OrgHomePage'
 import HRHomePage from './features/auth/pages/HRHomePage'
 import EmployeeHomePage from './features/auth/pages/EmployeeHomePage'
 import ProtectedRoute from './features/auth/components/ProtectedRoute'
 import { useAuthStore } from './features/auth/store/authStore'
+import OrgShell from './features/org/components/OrgShell'
+import OrgDashboardPage from './features/org/pages/OrgDashboardPage'
+import RepositoriesPage from './features/org/pages/RepositoriesPage'
+import TechStackPage from './features/org/pages/TechStackPage'
+import DocumentsPage from './features/org/pages/DocumentsPage'
+import HRManagersPage from './features/org/pages/HRManagersPage'
 
 function App() {
   const initializeAuth = useAuthStore((state) => state.initializeAuth)
@@ -26,10 +31,16 @@ function App() {
           path="/org"
           element={
             <ProtectedRoute allowedRoles={['system_designer']}>
-              <OrgHomePage />
+              <OrgShell />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<OrgDashboardPage />} />
+          <Route path="repositories" element={<RepositoriesPage />} />
+          <Route path="tech-stack" element={<TechStackPage />} />
+          <Route path="documents" element={<DocumentsPage />} />
+          <Route path="hr-managers" element={<HRManagersPage />} />
+        </Route>
         <Route
           path="/hr"
           element={

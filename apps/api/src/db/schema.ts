@@ -5,6 +5,7 @@ import { vector } from './vector.js';
 export const organizations = pgTable('organizations', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
+  uniqueOrgId: varchar('unique_org_id', { length: 64 }).notNull().unique(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

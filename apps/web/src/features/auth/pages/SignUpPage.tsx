@@ -25,7 +25,7 @@ export default function SignUpPage() {
     try {
       setLoading(true)
       const response = await registerOrg({ organizationName, email, password })
-      setSuccessMessage(`Organization created successfully. Your Org ID is ${response.organizationId}. You can now sign in.`)
+      setSuccessMessage(`Organization created successfully. Your Org ID is ${response.uniqueOrgId}. You can now sign in.`)
       setOrganizationName('')
       setEmail('')
       setPassword('')

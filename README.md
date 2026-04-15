@@ -270,6 +270,11 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/onboard_ai
 REDIS_URL=redis://localhost:6379
 JWT_SECRET=replace_with_secure_secret
 
+# Firebase Admin SDK credentials. Use one of these setups:
+# - FIREBASE_SERVICE_ACCOUNT_PATH=./config/firebase-service-account.json
+# - FIREBASE_PROJECT_ID + FIREBASE_PRIVATE_KEY + FIREBASE_CLIENT_EMAIL
+FIREBASE_SERVICE_ACCOUNT_PATH=./config/firebase-service-account.json
+
 AGENT1_BASE_URL=http://localhost:8001
 AGENT2_BASE_URL=http://localhost:8002
 AGENT3_BASE_URL=http://localhost:8003
@@ -283,9 +288,13 @@ GITHUB_TOKEN=replace_for_repo_crawling
 
 ```env
 VITE_API_BASE_URL=http://localhost:4000
-VITE_FIREBASE_API_KEY=optional
-VITE_FIREBASE_AUTH_DOMAIN=optional
-VITE_FIREBASE_PROJECT_ID=optional
+VITE_FIREBASE_API_KEY=your_firebase_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id_optional
 ```
 
 ### agents/*/.env (common example)
@@ -337,6 +346,17 @@ Recommended deployment pattern:
 4. Version shared contracts in packages/shared-types.
 
 ## Security and Compliance Notes
+
+### Firebase setup required for auth
+
+The app uses Firebase Authentication for sign-in and sign-up. Make sure these settings are configured in the Firebase console for the same project used by both the frontend and backend:
+
+- Enable Authentication in the Firebase project.
+- Enable the Email/Password sign-in provider.
+- Confirm the Firebase project ID matches the frontend `VITE_FIREBASE_PROJECT_ID` and the backend service account project.
+- Add `localhost:5173` to the authorized domains for local web auth testing.
+
+If these settings are missing, sign-up can fail with `auth/configuration-not-found`, `auth/operation-not-allowed`, or similar Firebase errors.
 
 - Enforce role-based route authorization for org, hr, and employee surfaces.
 - Use rateLimiter middleware to protect auth and agent-proxy endpoints.
