@@ -1,4 +1,4 @@
-import { pgTable, serial, text, varchar, integer, timestamp, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, varchar, integer, timestamp, jsonb, boolean } from 'drizzle-orm/pg-core';
 import { vector } from './vector.js';
 
 // Organizations table
@@ -40,7 +40,9 @@ export const repositories = pgTable('repositories', {
   id: serial('id').primaryKey(),
   organizationId: integer('organization_id').notNull().references(() => organizations.id),
   name: varchar('name', { length: 255 }).notNull(),
-  url: text('url').notNull(),
+  githubUrl: text('github_url').notNull(),
+  isPrivate: boolean('is_private').notNull().default(false),
+  lastIndexedAt: timestamp('last_indexed_at'),
 });
 
 // Tech Stack table

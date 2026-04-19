@@ -2,8 +2,8 @@ import { firebaseAuth } from '@/lib/firebase'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'
 
-export async function fetchWithAuth(input: string, init: Record<string, unknown> = {}) {
-  const token = await getIdToken()
+export async function fetchWithAuth(input: string, init: Record<string, unknown> = {}, idToken?: string) {
+  const token = idToken ?? (await getIdToken())
   const headers = new Headers((init as { headers?: any }).headers ?? {})
 
   if (!token) {

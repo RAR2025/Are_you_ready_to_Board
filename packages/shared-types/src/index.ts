@@ -31,3 +31,22 @@ export interface OrgRegisterResponse {
   userId: number
   role: Role
 }
+
+export interface RepositoryRecord {
+  id: number
+  org_id: number
+  github_url: string
+  name: string
+  is_private: boolean
+  last_indexed_at: string | null
+}
+
+export interface OrgReposResponse {
+  repositories: RepositoryRecord[]
+  sshKeyConfigured: boolean
+}
+
+export interface OrgRepoMutationResponse {
+  repository: RepositoryRecord
+  sshKeyConfigured: boolean
+}

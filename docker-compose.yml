@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: onboard_ai
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: RutuPostgre@2006
     ports:
       - "5432:5432"
     volumes:

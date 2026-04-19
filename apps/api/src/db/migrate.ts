@@ -13,7 +13,7 @@ const apiRoot = path.resolve(currentDir, '..', '..')
 config({ path: path.resolve(apiRoot, '.env'), override: true })
 
 const databaseUrl = process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/onboard_ai'
-const migrationsFolder = path.resolve(process.cwd(), 'src/db/migrations')
+const migrationsFolder = path.resolve(apiRoot, 'src/db/migrations')
 const metaFolder = path.join(migrationsFolder, 'meta')
 const journalFile = path.join(metaFolder, '_journal.json')
 

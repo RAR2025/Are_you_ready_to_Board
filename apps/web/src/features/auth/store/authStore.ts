@@ -22,8 +22,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ status: 'loading', error: null })
 
     try {
-      await signInUser(email, password)
-      const user = await fetchAuthMe()
+      const credential = await signInUser(email, password)
+      const idToken = await credential.user.getIdToken()
+      const user = await fetchAuthMe(idToken)
       set({ status: 'authenticated', user, error: null })
       return user
     } catch (error) {
