@@ -1,41 +1,53 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-
-const dashboardCards = [
-  {
-    title: 'Repositories',
-    count: '12',
-    countLabel: 'Active repositories',
-    actionLabel: 'Add',
-    to: 'repositories',
-    tone: 'from-cyan-400/20 to-sky-500/10',
-  },
-  {
-    title: 'Tech Stack',
-    count: '8',
-    countLabel: 'Approved tools',
-    actionLabel: 'Manage',
-    to: 'tech-stack',
-    tone: 'from-violet-400/20 to-fuchsia-500/10',
-  },
-  {
-    title: 'Documents',
-    count: '24',
-    countLabel: 'Knowledge docs',
-    actionLabel: 'Upload',
-    to: 'documents',
-    tone: 'from-emerald-400/20 to-teal-500/10',
-  },
-  {
-    title: 'HR Managers',
-    count: '4',
-    countLabel: 'Assigned managers',
-    actionLabel: 'Manage',
-    to: 'hr-managers',
-    tone: 'from-amber-400/20 to-orange-500/10',
-  },
-] as const
+import { useOrgStore } from '../store/orgStore'
 
 export default function OrgDashboardPage() {
+  const loadDashboardData = useOrgStore((state) => state.loadDashboardData)
+  const repositoriesCount = useOrgStore((state) => state.repositoriesCount)
+  const techStackCount = useOrgStore((state) => state.techStackCount)
+  const documentsCount = useOrgStore((state) => state.documentsCount)
+  const hrManagersCount = useOrgStore((state) => state.hrManagersCount)
+
+  useEffect(() => {
+    void loadDashboardData()
+  }, [loadDashboardData])
+
+  const dashboardCards = [
+    {
+      title: 'Repositories',
+      count: String(repositoriesCount),
+      countLabel: 'Active repositories',
+      actionLabel: 'Add',
+      to: 'repositories',
+      tone: 'from-cyan-400/20 to-sky-500/10',
+    },
+    {
+      title: 'Tech Stack',
+      count: String(techStackCount),
+      countLabel: 'Approved tools',
+      actionLabel: 'Manage',
+      to: 'tech-stack',
+      tone: 'from-violet-400/20 to-fuchsia-500/10',
+    },
+    {
+      title: 'Documents',
+      count: String(documentsCount),
+      countLabel: 'Knowledge docs',
+      actionLabel: 'Upload',
+      to: 'documents',
+      tone: 'from-emerald-400/20 to-teal-500/10',
+    },
+    {
+      title: 'HR Managers',
+      count: String(hrManagersCount),
+      countLabel: 'Assigned managers',
+      actionLabel: 'Manage',
+      to: 'hr-managers',
+      tone: 'from-amber-400/20 to-orange-500/10',
+    },
+  ] as const
+
   return (
     <section className="grid min-h-[calc(100vh-9rem)] grid-rows-[auto_auto_1fr] gap-4 lg:min-h-[calc(100vh-8.5rem)] lg:gap-5">
       <div className="rounded-[2rem] border border-white/10 bg-white/6 p-6 shadow-2xl shadow-black/20 backdrop-blur-xl sm:p-8">

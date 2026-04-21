@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import type { OrgRepoMutationResponse, OrgReposResponse, RepositoryRecord } from '@shared-types'
 import { fetchWithAuth } from '@/lib/api'
+import { useOrgStore } from '../store/orgStore'
 
 type AddRepoFormState = {
   githubUrl: string
@@ -16,6 +17,7 @@ const initialForm: AddRepoFormState = {
 }
 
 export default function RepositoriesPage() {
+  const refreshRepositoriesCount = useOrgStore((state) => state.refreshRepositoriesCount)
   const [repositories, setRepositories] = useState<RepositoryRecord[]>([])
   const [sshKeyConfigured, setSshKeyConfigured] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -27,16 +29,12 @@ export default function RepositoriesPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  useEffect(() => {
-    void loadRepositories()
-  }, [])
-
   const privateRepositories = useMemo(
     () => repositories.filter((repository) => repository.is_private).length,
     [repositories],
   )
 
-  async function loadRepositories() {
+  const loadRepositories = useCallback(async () => {
     setLoading(true)
 
     try {
@@ -46,14 +44,19 @@ export default function RepositoriesPage() {
       setRepositories(payload.repositories)
       setSshKeyConfigured(payload.sshKeyConfigured)
       setErrorMessage(null)
+      void refreshRepositoriesCount()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load repositories')
     } finally {
       setLoading(false)
     }
-  }
+  }, [refreshRepositoriesCount])
 
-  async function handleCreateRepository(event: React.FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    void loadRepositories()
+  }, [loadRepositories])
+
+  async function handleCreateRepository(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     if (!formState.githubUrl.trim()) {
@@ -81,6 +84,7 @@ export default function RepositoriesPage() {
       setIsModalOpen(false)
       setErrorMessage(null)
       setSuccessMessage('Repository added successfully')
+      void refreshRepositoriesCount()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to add repository')
       setSuccessMessage(null)
@@ -106,6 +110,7 @@ export default function RepositoriesPage() {
       setRepositories((current) => current.filter((repository) => repository.id !== repositoryId))
       setErrorMessage(null)
       setSuccessMessage('Repository removed')
+      void refreshRepositoriesCount()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to delete repository')
       setSuccessMessage(null)

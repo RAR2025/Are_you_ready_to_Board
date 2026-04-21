@@ -50,3 +50,53 @@ export interface OrgRepoMutationResponse {
   repository: RepositoryRecord
   sshKeyConfigured: boolean
 }
+
+export interface TechStackRecord {
+  id: number
+  org_id: number
+  name: string
+  description: string
+  created_at: string
+}
+
+export interface OrgTechStackResponse {
+  items: TechStackRecord[]
+}
+
+export interface CreateTechStackRequest {
+  name: string
+  description?: string
+}
+
+export interface OrgTechStackMutationResponse {
+  item: TechStackRecord
+}
+
+export interface DocumentRecord {
+  id: number
+  org_id: number
+  title: string
+  content: string
+  file_url: string
+  file_type: string
+  original_name: string
+  storage_path: string
+  uploaded_at: string
+}
+
+export interface OrgDocumentsResponse {
+  documents: DocumentRecord[]
+}
+
+export interface OrgDocumentMutationResponse {
+  document: DocumentRecord
+}
+
+export interface HrManagerRecord {
+  id: number
+  email: string
+}
+
+export interface OrgHrManagersResponse {
+  managers: HrManagerRecord[]
+}

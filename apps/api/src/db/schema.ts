@@ -48,8 +48,10 @@ export const repositories = pgTable('repositories', {
 // Tech Stack table
 export const techStack = pgTable('tech_stack', {
   id: serial('id').primaryKey(),
-  repositoryId: integer('repository_id').notNull().references(() => repositories.id),
-  technology: varchar('technology', { length: 255 }).notNull(),
+  organizationId: integer('organization_id').notNull().references(() => organizations.id),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description').notNull().default(''),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
 // Documents table
@@ -58,6 +60,11 @@ export const documents = pgTable('documents', {
   organizationId: integer('organization_id').notNull().references(() => organizations.id),
   title: varchar('title', { length: 255 }).notNull(),
   content: text('content').notNull(),
+  fileUrl: text('file_url').notNull(),
+  fileType: varchar('file_type', { length: 128 }).notNull(),
+  originalName: varchar('original_name', { length: 255 }).notNull(),
+  storagePath: text('storage_path').notNull(),
+  uploadedAt: timestamp('uploaded_at').defaultNow().notNull(),
 });
 
 // Vector Embeddings table

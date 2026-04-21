@@ -2,12 +2,13 @@ import cors from 'cors'
 import express from 'express'
 import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { and, eq } from 'drizzle-orm'
-import { firebaseAuth } from './lib/firebase-admin.js'
+import multer from 'multer'
+import { and, desc, eq, sql } from 'drizzle-orm'
+import { firebaseAuth, getFirebaseBucket } from './lib/firebase-admin.js'
 import { authenticate } from './middleware/authenticate.js'
 import { authorize } from './middleware/authorize.js'
 import { db } from './db/client.js'
-import { organizations, repositories, users } from './db/schema.js'
+import { documents, organizations, repositories, techStack, users } from './db/schema.js'
 
 const app = express()
 const port = Number(process.env.PORT ?? 4000)
@@ -189,6 +190,103 @@ function toRepoResponse(repository: typeof repositories.$inferSelect) {
     is_private: repository.isPrivate,
     last_indexed_at: repository.lastIndexedAt,
   }
+}
+
+function toTechStackResponse(item: typeof techStack.$inferSelect) {
+  return {
+    id: item.id,
+    org_id: item.organizationId,
+    name: item.name,
+    description: item.description,
+    created_at: item.createdAt,
+  }
+}
+
+function toDocumentResponse(document: typeof documents.$inferSelect) {
+  return {
+    id: document.id,
+    org_id: document.organizationId,
+    title: document.title,
+    content: document.content,
+    file_url: document.fileUrl,
+    file_type: document.fileType,
+    original_name: document.originalName,
+    storage_path: document.storagePath,
+    uploaded_at: document.uploadedAt,
+  }
+}
+
+const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024
+const allowedUploadMimeTypes = new Set([
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+])
+
+const documentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_DOCUMENT_SIZE_BYTES,
+    files: 1,
+  },
+  fileFilter: (_req, file, callback) => {
+    if (!allowedUploadMimeTypes.has(file.mimetype)) {
+      callback(new Error('Only PDF and DOCX files are allowed'))
+      return
+    }
+
+    callback(null, true)
+  },
+})
+
+function runDocumentUpload(req: express.Request, res: express.Response) {
+  return new Promise<void>((resolve, reject) => {
+    documentUpload.single('file')(req, res, (error) => {
+      if (error) {
+        reject(error)
+        return
+      }
+
+      resolve()
+    })
+  })
+}
+
+async function ensureOrgFeatureTables() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS repositories (
+      id SERIAL PRIMARY KEY,
+      organization_id INTEGER NOT NULL REFERENCES organizations(id),
+      name VARCHAR(255) NOT NULL,
+      github_url TEXT NOT NULL,
+      is_private BOOLEAN NOT NULL DEFAULT FALSE,
+      last_indexed_at TIMESTAMP
+    )
+  `)
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS tech_stack (
+      id SERIAL PRIMARY KEY,
+      organization_id INTEGER NOT NULL REFERENCES organizations(id),
+      name VARCHAR(255) NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      CONSTRAINT tech_stack_org_name_unique UNIQUE (organization_id, name)
+    )
+  `)
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS documents (
+      id SERIAL PRIMARY KEY,
+      organization_id INTEGER NOT NULL REFERENCES organizations(id),
+      title VARCHAR(255) NOT NULL,
+      content TEXT NOT NULL,
+      file_url TEXT NOT NULL,
+      file_type VARCHAR(128) NOT NULL,
+      original_name VARCHAR(255) NOT NULL,
+      storage_path TEXT NOT NULL,
+      uploaded_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `)
 }
 
 app.use(
@@ -462,6 +560,255 @@ app.post('/api/org/repos/:id/sync', authorize(['system_designer']), async (req, 
   }
 })
 
+app.get('/api/org/hr-managers', authorize(['system_designer']), async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  try {
+    const managers = await db.query.users.findMany({
+      where: and(
+        eq(users.organizationId, req.user.organizationId),
+        eq(users.role, 'hr'),
+      ),
+      columns: {
+        id: true,
+        email: true,
+      },
+    })
+
+    return res.json({ managers })
+  } catch (error) {
+    console.error('List HR managers error:', error)
+    return res.status(500).json({ error: 'Unable to list HR managers' })
+  }
+})
+
+app.get('/api/org/techstack', authorize(['system_designer']), async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  try {
+    const items = await db.query.techStack.findMany({
+      where: eq(techStack.organizationId, req.user.organizationId),
+      orderBy: [desc(techStack.createdAt)],
+    })
+
+    return res.json({ items: items.map(toTechStackResponse) })
+  } catch (error) {
+    console.error('List tech stack error:', error)
+    return res.status(500).json({ error: 'Unable to list tech stack entries' })
+  }
+})
+
+app.post('/api/org/techstack', authorize(['system_designer']), async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
+  const description = typeof req.body?.description === 'string' ? req.body.description.trim() : ''
+
+  if (!name) {
+    return res.status(400).json({ error: 'name is required' })
+  }
+
+  if (name.length > 255) {
+    return res.status(400).json({ error: 'name must be 255 characters or less' })
+  }
+
+  try {
+    const existing = await db.query.techStack.findFirst({
+      where: and(
+        eq(techStack.organizationId, req.user.organizationId),
+        eq(techStack.name, name),
+      ),
+    })
+
+    if (existing) {
+      return res.status(409).json({ error: 'Tech stack entry already exists' })
+    }
+
+    const inserted = await db.insert(techStack).values({
+      organizationId: req.user.organizationId,
+      name,
+      description,
+    }).returning()
+
+    const item = inserted[0]
+
+    if (!item) {
+      return res.status(500).json({ error: 'Unable to create tech stack entry' })
+    }
+
+    return res.status(201).json({ item: toTechStackResponse(item) })
+  } catch (error) {
+    console.error('Create tech stack error:', error)
+    return res.status(500).json({ error: 'Unable to create tech stack entry' })
+  }
+})
+
+app.delete('/api/org/techstack/:id', authorize(['system_designer']), async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const techStackId = Number(req.params.id)
+
+  if (!Number.isInteger(techStackId) || techStackId <= 0) {
+    return res.status(400).json({ error: 'A valid tech stack id is required' })
+  }
+
+  try {
+    const deleted = await db.delete(techStack).where(and(
+      eq(techStack.id, techStackId),
+      eq(techStack.organizationId, req.user.organizationId),
+    )).returning({ id: techStack.id })
+
+    if (!deleted[0]) {
+      return res.status(404).json({ error: 'Tech stack entry not found' })
+    }
+
+    return res.json({ id: deleted[0].id })
+  } catch (error) {
+    console.error('Delete tech stack error:', error)
+    return res.status(500).json({ error: 'Unable to delete tech stack entry' })
+  }
+})
+
+app.get('/api/org/documents', authorize(['system_designer']), async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  try {
+    const orgDocuments = await db.query.documents.findMany({
+      where: eq(documents.organizationId, req.user.organizationId),
+      orderBy: [desc(documents.uploadedAt)],
+    })
+
+    return res.json({ documents: orgDocuments.map(toDocumentResponse) })
+  } catch (error) {
+    console.error('List documents error:', error)
+    return res.status(500).json({ error: 'Unable to list documents' })
+  }
+})
+
+app.post('/api/org/documents', authorize(['system_designer']), async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  try {
+    await runDocumentUpload(req, res)
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'A file is required' })
+    }
+
+    const originalName = req.file.originalname.trim() || 'document'
+    const title = typeof req.body?.title === 'string' && req.body.title.trim()
+      ? req.body.title.trim()
+      : originalName
+    const content = typeof req.body?.content === 'string' ? req.body.content : ''
+    const safeOriginalName = originalName.replace(/[^A-Za-z0-9._-]+/g, '_')
+    const storagePath = `orgs/${req.user.organizationId}/documents/${Date.now()}-${randomBytes(4).toString('hex')}-${safeOriginalName}`
+    const firebaseBucket = getFirebaseBucket()
+    const fileRef = firebaseBucket.file(storagePath)
+
+    await fileRef.save(req.file.buffer, {
+      resumable: false,
+      metadata: {
+        contentType: req.file.mimetype,
+      },
+    })
+
+    const encodedPath = storagePath
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/')
+    const fileUrl = `https://storage.googleapis.com/${firebaseBucket.name}/${encodedPath}`
+
+    const inserted = await db.insert(documents).values({
+      organizationId: req.user.organizationId,
+      title,
+      content,
+      fileUrl,
+      fileType: req.file.mimetype,
+      originalName,
+      storagePath,
+    }).returning()
+
+    const document = inserted[0]
+
+    if (!document) {
+      await fileRef.delete().catch(() => undefined)
+      return res.status(500).json({ error: 'Unable to save uploaded document metadata' })
+    }
+
+    return res.status(201).json({ document: toDocumentResponse(document) })
+  } catch (error) {
+    if (error instanceof multer.MulterError) {
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: `File too large. Max size is ${Math.floor(MAX_DOCUMENT_SIZE_BYTES / (1024 * 1024))}MB` })
+      }
+
+      return res.status(400).json({ error: error.message || 'Invalid upload payload' })
+    }
+
+    if (error instanceof Error && error.message === 'Only PDF and DOCX files are allowed') {
+      return res.status(400).json({ error: error.message })
+    }
+
+    console.error('Upload document error:', error)
+    return res.status(500).json({ error: 'Unable to upload document' })
+  }
+})
+
+app.delete('/api/org/documents/:id', authorize(['system_designer']), async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const documentId = Number(req.params.id)
+
+  if (!Number.isInteger(documentId) || documentId <= 0) {
+    return res.status(400).json({ error: 'A valid document id is required' })
+  }
+
+  try {
+    const document = await db.query.documents.findFirst({
+      where: and(
+        eq(documents.id, documentId),
+        eq(documents.organizationId, req.user.organizationId),
+      ),
+    })
+
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' })
+    }
+
+    try {
+      const firebaseBucket = getFirebaseBucket()
+      await firebaseBucket.file(document.storagePath).delete({ ignoreNotFound: true })
+    } catch (storageError) {
+      console.error('Delete storage file error:', storageError)
+      return res.status(500).json({ error: 'Unable to delete file from storage' })
+    }
+
+    await db.delete(documents).where(and(
+      eq(documents.id, document.id),
+      eq(documents.organizationId, req.user.organizationId),
+    ))
+
+    return res.json({ id: document.id })
+  } catch (error) {
+    console.error('Delete document error:', error)
+    return res.status(500).json({ error: 'Unable to delete document' })
+  }
+})
+
 app.get('/org/dashboard', authorize(['system_designer']), (req, res) => {
   res.json({ message: 'Welcome to the system designer dashboard', user: req.user })
 });
@@ -473,6 +820,8 @@ app.get('/hr/dashboard', authorize(['hr']), (req, res) => {
 app.get('/employee/dashboard', authorize(['employee']), (req, res) => {
   res.json({ message: 'Welcome to the employee dashboard', user: req.user });
 });
+
+await ensureOrgFeatureTables()
 
 app.listen(port, () => {
   console.log(`API running on http://localhost:${port}`)

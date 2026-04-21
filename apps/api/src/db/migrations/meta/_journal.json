@@ -1,5 +1,41 @@
 {
   "version": "7",
   "dialect": "postgresql",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1766231940000,
+      "tag": "0000_create_core_org_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1766232000000,
+      "tag": "0001_add_firebase_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1766232060000,
+      "tag": "0002_add_unique_org_id_to_organizations",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1766232120000,
+      "tag": "0003_update_repositories_for_org_repo_manager",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1766232180000,
+      "tag": "0004_add_org_techstack_and_document_metadata",
+      "breakpoints": true
+    }
+  ]
 }

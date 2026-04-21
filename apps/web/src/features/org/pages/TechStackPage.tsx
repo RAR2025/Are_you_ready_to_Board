@@ -1,15 +1,26 @@
-import OrgSectionPage from '../components/OrgSectionPage'
+import { useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import TechStack from '../components/TechStack'
+import { useOrgStore } from '../store/orgStore'
 
 export default function TechStackPage() {
+  const loadTechStack = useOrgStore((state) => state.loadTechStack)
+
+  useEffect(() => {
+    void loadTechStack()
+  }, [loadTechStack])
+
   return (
-    <OrgSectionPage
-      eyebrow="Tech Stack"
-      title="Manage approved technologies"
-      description="Keep a clean inventory of languages, frameworks, deployment tools, and internal standards. This page is reserved for future editing and governance controls."
-      statusLabel="Approved stack items"
-      statusValue="8 tracked"
-      backLabel="Back to dashboard"
-      backTo="/org"
-    />
+    <section className="grid min-h-[calc(100vh-9rem)] gap-4 lg:min-h-[calc(100vh-8.5rem)] lg:gap-5">
+      <div>
+        <Link
+          to="/org"
+          className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-white/30 hover:text-white"
+        >
+          Back to dashboard
+        </Link>
+      </div>
+      <TechStack />
+    </section>
   )
 }
