@@ -1,14 +1,14 @@
 import cors from 'cors'
 import express from 'express'
-import { randomBytes } from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { createHash, randomBytes } from 'node:crypto'
 import multer from 'multer'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { firebaseAuth, getFirebaseBucket } from './lib/firebase-admin.js'
 import { authenticate } from './middleware/authenticate.js'
 import { authorize } from './middleware/authorize.js'
 import { db } from './db/client.js'
-import { documents, organizations, repositories, techStack, users } from './db/schema.js'
+import { enqueueRepoSyncJob } from './queue/repo-sync-queue.js'
+import { documents, orgSshKeys, organizations, repositories, techStack, users } from './db/schema.js'
 
 const app = express()
 const port = Number(process.env.PORT ?? 4000)
@@ -96,6 +96,11 @@ type GithubRepoLookupResult = {
   isPrivate: boolean
 }
 
+type PublicKeyParseResult = {
+  normalizedPublicKey: string
+  fingerprint: string
+}
+
 function parseGitHubRepoUrl(rawUrl: unknown): ParsedGitHubRepo | null {
   if (typeof rawUrl !== 'string') {
     return null
@@ -167,18 +172,54 @@ async function fetchGitHubPublicRepo(owner: string, repo: string): Promise<Githu
   }
 }
 
-function isSshKeyConfigured() {
-  const inlineKey = process.env.GITHUB_SSH_PRIVATE_KEY
-  if (inlineKey && inlineKey.trim().length > 0) {
-    return true
+function parseAndFingerprintPublicKey(rawPublicKey: unknown): PublicKeyParseResult | null {
+  if (typeof rawPublicKey !== 'string') {
+    return null
   }
 
-  const keyPath = process.env.GITHUB_SSH_KEY_PATH
-  if (keyPath && existsSync(keyPath)) {
-    return true
+  const trimmed = rawPublicKey.trim()
+
+  if (!trimmed || trimmed.includes('PRIVATE KEY')) {
+    return null
   }
 
-  return false
+  const segments = trimmed.split(/\s+/)
+  const [keyType, keyBody] = segments
+
+  if (!keyType || !keyBody || !keyType.startsWith('ssh-')) {
+    return null
+  }
+
+  let decodedKeyBody: Buffer
+
+  try {
+    decodedKeyBody = Buffer.from(keyBody, 'base64')
+  } catch {
+    return null
+  }
+
+  if (!decodedKeyBody.length || decodedKeyBody.toString('base64').replace(/=+$/g, '') !== keyBody.replace(/=+$/g, '')) {
+    return null
+  }
+
+  const fingerprint = createHash('sha256')
+    .update(decodedKeyBody)
+    .digest('base64')
+    .replace(/=+$/g, '')
+
+  return {
+    normalizedPublicKey: `${keyType} ${keyBody}`,
+    fingerprint: `SHA256:${fingerprint}`,
+  }
+}
+
+function toSshKeyResponse(sshKey: typeof orgSshKeys.$inferSelect) {
+  return {
+    id: sshKey.id,
+    label: sshKey.label,
+    fingerprint: sshKey.fingerprint,
+    created_at: sshKey.createdAt,
+  }
 }
 
 function toRepoResponse(repository: typeof repositories.$inferSelect) {
@@ -287,6 +328,18 @@ async function ensureOrgFeatureTables() {
       uploaded_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `)
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS org_ssh_keys (
+      id SERIAL PRIMARY KEY,
+      organization_id INTEGER NOT NULL REFERENCES organizations(id),
+      label VARCHAR(255) NOT NULL,
+      public_key TEXT NOT NULL,
+      fingerprint VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      CONSTRAINT org_ssh_keys_org_fingerprint_unique UNIQUE (organization_id, fingerprint)
+    )
+  `)
 }
 
 app.use(
@@ -391,13 +444,105 @@ app.get('/api/org/repos', authorize(['system_designer']), async (req, res) => {
       where: eq(repositories.organizationId, req.user.organizationId),
     })
 
+    const orgHasSshKey = await db.query.orgSshKeys.findFirst({
+      where: eq(orgSshKeys.organizationId, req.user.organizationId),
+      columns: { id: true },
+    })
+
     return res.json({
       repositories: orgRepositories.map(toRepoResponse),
-      sshKeyConfigured: isSshKeyConfigured(),
+      sshKeyConfigured: Boolean(orgHasSshKey),
     })
   } catch (error) {
     console.error('List repositories error:', error)
     return res.status(500).json({ error: 'Unable to list repositories' })
+  }
+})
+
+app.get('/api/org/ssh-keys', authorize(['system_designer']), async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  try {
+    const sshKeys = await db.query.orgSshKeys.findMany({
+      where: eq(orgSshKeys.organizationId, req.user.organizationId),
+      orderBy: [desc(orgSshKeys.createdAt)],
+    })
+
+    return res.json({ keys: sshKeys.map(toSshKeyResponse) })
+  } catch (error) {
+    console.error('List SSH keys error:', error)
+    return res.status(500).json({ error: 'Unable to list SSH keys' })
+  }
+})
+
+app.post('/api/org/ssh-keys', authorize(['system_designer']), async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const label = typeof req.body?.label === 'string' ? req.body.label.trim() : ''
+  const parsedPublicKey = parseAndFingerprintPublicKey(req.body?.public_key)
+
+  if (!label) {
+    return res.status(400).json({ error: 'label is required' })
+  }
+
+  if (label.length > 255) {
+    return res.status(400).json({ error: 'label must be 255 characters or less' })
+  }
+
+  if (!parsedPublicKey) {
+    return res.status(400).json({ error: 'A valid SSH public key is required' })
+  }
+
+  try {
+    const inserted = await db.insert(orgSshKeys).values({
+      organizationId: req.user.organizationId,
+      label,
+      publicKey: parsedPublicKey.normalizedPublicKey,
+      fingerprint: parsedPublicKey.fingerprint,
+    }).returning()
+
+    const createdKey = inserted[0]
+
+    if (!createdKey) {
+      return res.status(500).json({ error: 'Unable to save SSH key' })
+    }
+
+    return res.status(201).json({ key: toSshKeyResponse(createdKey) })
+  } catch (error) {
+    console.error('Create SSH key error:', error)
+    return res.status(500).json({ error: 'Unable to save SSH key' })
+  }
+})
+
+app.delete('/api/org/ssh-keys/:id', authorize(['system_designer']), async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const sshKeyId = Number(req.params.id)
+
+  if (!Number.isInteger(sshKeyId) || sshKeyId <= 0) {
+    return res.status(400).json({ error: 'A valid ssh key id is required' })
+  }
+
+  try {
+    const deleted = await db.delete(orgSshKeys).where(and(
+      eq(orgSshKeys.id, sshKeyId),
+      eq(orgSshKeys.organizationId, req.user.organizationId),
+    )).returning({ id: orgSshKeys.id })
+
+    if (!deleted[0]) {
+      return res.status(404).json({ error: 'SSH key not found' })
+    }
+
+    return res.json({ id: deleted[0].id })
+  } catch (error) {
+    console.error('Delete SSH key error:', error)
+    return res.status(500).json({ error: 'Unable to delete SSH key' })
   }
 })
 
@@ -465,9 +610,14 @@ app.post('/api/org/repos', authorize(['system_designer']), async (req, res) => {
       return res.status(500).json({ error: 'Unable to create repository' })
     }
 
+    const orgHasSshKey = await db.query.orgSshKeys.findFirst({
+      where: eq(orgSshKeys.organizationId, req.user.organizationId),
+      columns: { id: true },
+    })
+
     return res.status(201).json({
       repository: toRepoResponse(createdRepo),
-      sshKeyConfigured: isSshKeyConfigured(),
+      sshKeyConfigured: Boolean(orgHasSshKey),
     })
   } catch (error) {
     console.error('Create repository error:', error)
@@ -527,14 +677,26 @@ app.post('/api/org/repos/:id/sync', authorize(['system_designer']), async (req, 
       return res.status(404).json({ error: 'Repository not found' })
     }
 
-    const sshKeyConfigured = isSshKeyConfigured()
+    const orgSshKey = await db.query.orgSshKeys.findFirst({
+      where: eq(orgSshKeys.organizationId, req.user.organizationId),
+      orderBy: [desc(orgSshKeys.createdAt)],
+      columns: { id: true },
+    })
+
+    const sshKeyConfigured = Boolean(orgSshKey)
 
     if (repository.isPrivate && !sshKeyConfigured) {
-      return res.status(409).json({
-        error: 'Add an SSH key first to index private repos',
-        sshKeyConfigured,
+      return res.status(400).json({
+        error: 'NO_SSH_KEY',
+        message: 'Register an SSH key before syncing private repositories.',
       })
     }
+
+    const syncJob = await enqueueRepoSyncJob({
+      repositoryId: repository.id,
+      organizationId: req.user.organizationId,
+      sshKeyId: repository.isPrivate ? orgSshKey?.id ?? null : null,
+    })
 
     const updated = await db.update(repositories).set({
       lastIndexedAt: new Date(),
@@ -552,7 +714,8 @@ app.post('/api/org/repos/:id/sync', authorize(['system_designer']), async (req, 
     return res.json({
       repository: toRepoResponse(syncedRepo),
       sshKeyConfigured,
-      status: 'synced',
+      status: 'queued',
+      jobId: syncJob.id,
     })
   } catch (error) {
     console.error('Sync repository error:', error)

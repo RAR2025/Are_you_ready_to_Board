@@ -49,6 +49,33 @@ export interface OrgReposResponse {
 export interface OrgRepoMutationResponse {
   repository: RepositoryRecord
   sshKeyConfigured: boolean
+  status?: 'queued' | 'synced'
+  jobId?: string
+}
+
+export interface SshKeyRecord {
+  id: number
+  label: string
+  fingerprint: string
+  created_at: string
+}
+
+export interface OrgSshKeysResponse {
+  keys: SshKeyRecord[]
+}
+
+export interface OrgSshKeyMutationResponse {
+  key: SshKeyRecord
+}
+
+export interface CreateOrgSshKeyRequest {
+  label: string
+  public_key: string
+}
+
+export interface ApiErrorResponse {
+  error: string
+  message?: string
 }
 
 export interface TechStackRecord {

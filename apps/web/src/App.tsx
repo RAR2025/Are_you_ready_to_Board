@@ -13,6 +13,7 @@ import RepositoriesPage from './features/org/pages/RepositoriesPage'
 import TechStackPage from './features/org/pages/TechStackPage'
 import DocumentsPage from './features/org/pages/DocumentsPage'
 import HRManagersPage from './features/org/pages/HRManagersPage'
+import SSHKeysPage from './features/org/pages/SSHKeysPage'
 
 function App() {
   const initializeAuth = useAuthStore((state) => state.initializeAuth)
@@ -40,6 +41,7 @@ function App() {
           <Route path="tech-stack" element={<TechStackPage />} />
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="hr-managers" element={<HRManagersPage />} />
+          <Route path="ssh-keys" element={<SSHKeysPage />} />
         </Route>
         <Route
           path="/hr"

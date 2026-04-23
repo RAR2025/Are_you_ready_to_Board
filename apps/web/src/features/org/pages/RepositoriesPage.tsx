@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type { OrgRepoMutationResponse, OrgReposResponse, RepositoryRecord } from '@shared-types'
-import { fetchWithAuth } from '@/lib/api'
+import { ApiRequestError, fetchWithAuth } from '@/lib/api'
 import { useOrgStore } from '../store/orgStore'
 
 type AddRepoFormState = {
@@ -17,6 +17,7 @@ const initialForm: AddRepoFormState = {
 }
 
 export default function RepositoriesPage() {
+  const navigate = useNavigate()
   const refreshRepositoriesCount = useOrgStore((state) => state.refreshRepositoriesCount)
   const [repositories, setRepositories] = useState<RepositoryRecord[]>([])
   const [sshKeyConfigured, setSshKeyConfigured] = useState(false)
@@ -136,6 +137,17 @@ export default function RepositoriesPage() {
       setErrorMessage(null)
       setSuccessMessage('Repository synced')
     } catch (error) {
+      if (error instanceof ApiRequestError && error.code === 'NO_SSH_KEY') {
+        setErrorMessage(error.message)
+        setSuccessMessage(null)
+        navigate('/org/ssh-keys', {
+          state: {
+            highlightEmptyState: true,
+          },
+        })
+        return
+      }
+
       setErrorMessage(error instanceof Error ? error.message : 'Unable to sync repository')
       setSuccessMessage(null)
     } finally {

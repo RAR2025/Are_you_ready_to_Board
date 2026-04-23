@@ -45,6 +45,16 @@ export const repositories = pgTable('repositories', {
   lastIndexedAt: timestamp('last_indexed_at'),
 });
 
+// Organization SSH keys table
+export const orgSshKeys = pgTable('org_ssh_keys', {
+  id: serial('id').primaryKey(),
+  organizationId: integer('organization_id').notNull().references(() => organizations.id),
+  label: varchar('label', { length: 255 }).notNull(),
+  publicKey: text('public_key').notNull(),
+  fingerprint: varchar('fingerprint', { length: 255 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 // Tech Stack table
 export const techStack = pgTable('tech_stack', {
   id: serial('id').primaryKey(),

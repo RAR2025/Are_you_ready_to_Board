@@ -8,6 +8,7 @@ export default function OrgDashboardPage() {
   const techStackCount = useOrgStore((state) => state.techStackCount)
   const documentsCount = useOrgStore((state) => state.documentsCount)
   const hrManagersCount = useOrgStore((state) => state.hrManagersCount)
+  const sshKeysCount = useOrgStore((state) => state.sshKeysCount)
 
   useEffect(() => {
     void loadDashboardData()
@@ -46,6 +47,14 @@ export default function OrgDashboardPage() {
       to: 'hr-managers',
       tone: 'from-amber-400/20 to-orange-500/10',
     },
+    {
+      title: 'SSH Keys',
+      count: String(sshKeysCount),
+      countLabel: 'Registered keys',
+      actionLabel: 'Manage',
+      to: 'ssh-keys',
+      tone: 'from-rose-400/20 to-pink-500/10',
+    },
   ] as const
 
   return (
@@ -67,7 +76,7 @@ export default function OrgDashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 lg:gap-5">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5 lg:gap-5">
         {dashboardCards.map((card) => (
           <article
             key={card.title}
@@ -121,6 +130,10 @@ export default function OrgDashboardPage() {
             <li className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3">
               <span>HR Managers</span>
               <span className="text-amber-300">/org/hr-managers</span>
+            </li>
+            <li className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3">
+              <span>SSH Keys</span>
+              <span className="text-rose-300">/org/ssh-keys</span>
             </li>
           </ul>
         </article>

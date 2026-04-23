@@ -1,12 +1,15 @@
 import { create } from 'zustand'
 import type {
   DocumentRecord,
+  OrgSshKeyMutationResponse,
+  OrgSshKeysResponse,
   OrgDocumentMutationResponse,
   OrgDocumentsResponse,
   OrgHrManagersResponse,
   OrgReposResponse,
   OrgTechStackMutationResponse,
   OrgTechStackResponse,
+  SshKeyRecord,
   TechStackRecord,
 } from '@shared-types'
 import { fetchWithAuth } from '@/lib/api'
@@ -26,10 +29,15 @@ interface OrgState {
   techStackCount: number
   documentsCount: number
   hrManagersCount: number
+  sshKeysCount: number
   techStackItems: TechStackRecord[]
   documents: DocumentRecord[]
+  sshKeys: SshKeyRecord[]
   loadDashboardData: () => Promise<void>
   refreshRepositoriesCount: () => Promise<void>
+  loadSSHKeys: () => Promise<void>
+  addSSHKey: (label: string, publicKey: string) => Promise<SshKeyRecord>
+  deleteSSHKey: (id: number) => Promise<void>
   loadTechStack: () => Promise<void>
   addTechStackItem: (name: string, description?: string) => Promise<void>
   deleteTechStackItem: (id: number) => Promise<void>
@@ -45,24 +53,28 @@ export const useOrgStore = create<OrgState>((set, get) => ({
   techStackCount: 0,
   documentsCount: 0,
   hrManagersCount: 0,
+  sshKeysCount: 0,
   techStackItems: [],
   documents: [],
+  sshKeys: [],
 
   loadDashboardData: async () => {
     set({ status: 'loading', error: null })
 
     try {
-      const [reposResponse, techResponse, docsResponse, hrResponse] = await Promise.all([
+      const [reposResponse, techResponse, docsResponse, hrResponse, sshKeysResponse] = await Promise.all([
         fetchWithAuth('/api/org/repos'),
         fetchWithAuth('/api/org/techstack'),
         fetchWithAuth('/api/org/documents'),
         fetchWithAuth('/api/org/hr-managers'),
+        fetchWithAuth('/api/org/ssh-keys'),
       ])
 
       const reposPayload = (await reposResponse.json()) as OrgReposResponse
       const techPayload = (await techResponse.json()) as OrgTechStackResponse
       const docsPayload = (await docsResponse.json()) as OrgDocumentsResponse
       const hrPayload = (await hrResponse.json()) as OrgHrManagersResponse
+      const sshKeysPayload = (await sshKeysResponse.json()) as OrgSshKeysResponse
 
       set({
         status: 'ready',
@@ -70,8 +82,10 @@ export const useOrgStore = create<OrgState>((set, get) => ({
         techStackCount: techPayload.items.length,
         documentsCount: docsPayload.documents.length,
         hrManagersCount: hrPayload.managers.length,
+        sshKeysCount: sshKeysPayload.keys.length,
         techStackItems: techPayload.items,
         documents: docsPayload.documents,
+        sshKeys: sshKeysPayload.keys,
         error: null,
       })
     } catch (error) {
@@ -90,6 +104,70 @@ export const useOrgStore = create<OrgState>((set, get) => ({
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Unable to refresh repositories count' })
     }
+  },
+
+  loadSSHKeys: async () => {
+    set({ status: 'loading', error: null })
+
+    try {
+      const response = await fetchWithAuth('/api/org/ssh-keys')
+      const payload = (await response.json()) as OrgSshKeysResponse
+
+      set({
+        status: 'ready',
+        sshKeys: payload.keys,
+        sshKeysCount: payload.keys.length,
+        error: null,
+      })
+    } catch (error) {
+      set({
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Unable to load SSH keys',
+      })
+      throw error
+    }
+  },
+
+  addSSHKey: async (label: string, publicKey: string) => {
+    const trimmedLabel = label.trim()
+    const trimmedPublicKey = publicKey.trim()
+
+    if (!trimmedLabel || !trimmedPublicKey) {
+      throw new Error('Label and public key are required')
+    }
+
+    const response = await fetchWithAuth('/api/org/ssh-keys', {
+      method: 'POST',
+      body: JSON.stringify({
+        label: trimmedLabel,
+        public_key: trimmedPublicKey,
+      }),
+    })
+
+    const payload = (await response.json()) as OrgSshKeyMutationResponse
+    const nextKeys = [payload.key, ...get().sshKeys]
+
+    set({
+      sshKeys: nextKeys,
+      sshKeysCount: nextKeys.length,
+      error: null,
+    })
+
+    return payload.key
+  },
+
+  deleteSSHKey: async (id: number) => {
+    await fetchWithAuth(`/api/org/ssh-keys/${id}`, {
+      method: 'DELETE',
+    })
+
+    const nextKeys = get().sshKeys.filter((key) => key.id !== id)
+
+    set({
+      sshKeys: nextKeys,
+      sshKeysCount: nextKeys.length,
+      error: null,
+    })
   },
 
   loadTechStack: async () => {
