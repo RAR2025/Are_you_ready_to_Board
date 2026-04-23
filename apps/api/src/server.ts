@@ -101,6 +101,13 @@ type PublicKeyParseResult = {
   fingerprint: string
 }
 
+type HrManagerResponse = {
+  id: number
+  name: string
+  email: string
+  status: 'active' | 'disabled'
+}
+
 function parseGitHubRepoUrl(rawUrl: unknown): ParsedGitHubRepo | null {
   if (typeof rawUrl !== 'string') {
     return null
@@ -222,6 +229,47 @@ function toSshKeyResponse(sshKey: typeof orgSshKeys.$inferSelect) {
   }
 }
 
+function toHrManagerResponse(manager: typeof users.$inferSelect): HrManagerResponse {
+  return {
+    id: manager.id,
+    name: manager.name,
+    email: manager.email,
+    status: manager.isDisabled ? 'disabled' : 'active',
+  }
+}
+
+function generateTemporaryPassword() {
+  return `Tmp-${randomBytes(12).toString('base64url')}!aA1`
+}
+
+async function sendFirebasePasswordResetEmail(email: string) {
+  const firebaseWebApiKey = process.env.FIREBASE_WEB_API_KEY?.trim()
+
+  if (!firebaseWebApiKey) {
+    throw new Error('FIREBASE_WEB_API_KEY is required to send Firebase password reset emails from the API')
+  }
+
+  const response = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${encodeURIComponent(firebaseWebApiKey)}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        requestType: 'PASSWORD_RESET',
+        email,
+      }),
+    },
+  )
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null)
+    const message = payload?.error?.message || 'Unable to send Firebase password reset email'
+    throw new Error(message)
+  }
+}
+
 function toRepoResponse(repository: typeof repositories.$inferSelect) {
   return {
     id: repository.id,
@@ -293,6 +341,13 @@ function runDocumentUpload(req: express.Request, res: express.Response) {
 }
 
 async function ensureOrgFeatureTables() {
+  await db.execute(sql`
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS name VARCHAR(255) NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS is_disabled BOOLEAN NOT NULL DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP
+  `)
+
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS repositories (
       id SERIAL PRIMARY KEY,
@@ -398,9 +453,12 @@ app.post('/api/org/register', async (req, res) => {
 
     const userInsert = await db.insert(users).values({
       organizationId,
+      name: organizationName,
       email,
       firebaseUid: createdUser.uid,
       role: 'system_designer',
+      isDisabled: false,
+      deletedAt: null,
     }).returning({ id: users.id })
 
     const userId = userInsert[0]?.id
@@ -723,6 +781,27 @@ app.post('/api/org/repos/:id/sync', authorize(['system_designer']), async (req, 
   }
 })
 
+app.get('/api/org/hr', authorize(['system_designer']), async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  try {
+    const managers = await db.query.users.findMany({
+      where: and(
+        eq(users.organizationId, req.user.organizationId),
+        eq(users.role, 'hr'),
+      ),
+      orderBy: [desc(users.createdAt)],
+    })
+
+    return res.json({ managers: managers.map(toHrManagerResponse) })
+  } catch (error) {
+    console.error('List HR users error:', error)
+    return res.status(500).json({ error: 'Unable to list HR managers' })
+  }
+})
+
 app.get('/api/org/hr-managers', authorize(['system_designer']), async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' })
@@ -734,16 +813,139 @@ app.get('/api/org/hr-managers', authorize(['system_designer']), async (req, res)
         eq(users.organizationId, req.user.organizationId),
         eq(users.role, 'hr'),
       ),
-      columns: {
-        id: true,
-        email: true,
-      },
+      orderBy: [desc(users.createdAt)],
     })
 
-    return res.json({ managers })
+    return res.json({ managers: managers.map(toHrManagerResponse) })
   } catch (error) {
     console.error('List HR managers error:', error)
     return res.status(500).json({ error: 'Unable to list HR managers' })
+  }
+})
+
+app.post('/api/org/hr', authorize(['system_designer']), async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : ''
+
+  if (!name) {
+    return res.status(400).json({ error: 'name is required' })
+  }
+
+  if (!email) {
+    return res.status(400).json({ error: 'email is required' })
+  }
+
+  if (!email.includes('@')) {
+    return res.status(400).json({ error: 'A valid email is required' })
+  }
+
+  const existingManager = await db.query.users.findFirst({
+    where: and(
+      eq(users.organizationId, req.user.organizationId),
+      eq(users.email, email),
+      eq(users.role, 'hr'),
+    ),
+  })
+
+  if (existingManager && !existingManager.deletedAt) {
+    return res.status(409).json({ error: 'HR manager already exists for this organization' })
+  }
+
+  let firebaseUserUid: string | null = null
+
+  try {
+    const tempPassword = generateTemporaryPassword()
+
+    const createdFirebaseUser = await firebaseAuth.createUser({
+      email,
+      password: tempPassword,
+      displayName: name,
+      disabled: false,
+    })
+
+    firebaseUserUid = createdFirebaseUser.uid
+
+    const createdUsers = await db.insert(users).values({
+      organizationId: req.user.organizationId,
+      name,
+      email,
+      firebaseUid: createdFirebaseUser.uid,
+      role: 'hr',
+      isDisabled: false,
+      deletedAt: null,
+    }).returning()
+
+    const createdManager = createdUsers[0]
+
+    if (!createdManager) {
+      throw new Error('Unable to create HR manager record')
+    }
+
+    await sendFirebasePasswordResetEmail(email)
+
+    return res.status(201).json({ manager: toHrManagerResponse(createdManager) })
+  } catch (error) {
+    if (firebaseUserUid) {
+      await firebaseAuth.deleteUser(firebaseUserUid).catch(() => undefined)
+      await db.delete(users).where(eq(users.firebaseUid, firebaseUserUid)).catch(() => undefined)
+    }
+
+    console.error('Create HR manager error:', error)
+    const message = error instanceof Error ? error.message : 'Unable to create HR manager'
+    return res.status(500).json({ error: message })
+  }
+})
+
+app.delete('/api/org/hr/:id', authorize(['system_designer']), async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const managerId = Number(req.params.id)
+
+  if (!Number.isInteger(managerId) || managerId <= 0) {
+    return res.status(400).json({ error: 'A valid HR manager id is required' })
+  }
+
+  try {
+    const manager = await db.query.users.findFirst({
+      where: and(
+        eq(users.id, managerId),
+        eq(users.organizationId, req.user.organizationId),
+        eq(users.role, 'hr'),
+      ),
+    })
+
+    if (!manager) {
+      return res.status(404).json({ error: 'HR manager not found' })
+    }
+
+    await firebaseAuth.updateUser(manager.firebaseUid, { disabled: true })
+
+    const updatedRows = await db.update(users).set({
+      isDisabled: true,
+      deletedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(and(
+      eq(users.id, manager.id),
+      eq(users.organizationId, req.user.organizationId),
+      eq(users.role, 'hr'),
+    )).returning()
+
+    const updatedManager = updatedRows[0]
+
+    if (!updatedManager) {
+      return res.status(500).json({ error: 'Unable to disable HR manager' })
+    }
+
+    return res.json({ manager: toHrManagerResponse(updatedManager) })
+  } catch (error) {
+    console.error('Disable HR manager error:', error)
+    return res.status(500).json({ error: 'Unable to disable HR manager' })
   }
 })
 

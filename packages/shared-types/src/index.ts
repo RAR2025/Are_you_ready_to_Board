@@ -121,9 +121,20 @@ export interface OrgDocumentMutationResponse {
 
 export interface HrManagerRecord {
   id: number
+  name: string
   email: string
+  status: 'active' | 'disabled'
 }
 
 export interface OrgHrManagersResponse {
   managers: HrManagerRecord[]
+}
+
+export interface CreateHrManagerRequest {
+  name: string
+  email: string
+}
+
+export interface OrgHrManagerMutationResponse {
+  manager: HrManagerRecord
 }

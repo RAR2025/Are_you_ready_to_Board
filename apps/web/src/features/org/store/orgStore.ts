@@ -66,7 +66,7 @@ export const useOrgStore = create<OrgState>((set, get) => ({
         fetchWithAuth('/api/org/repos'),
         fetchWithAuth('/api/org/techstack'),
         fetchWithAuth('/api/org/documents'),
-        fetchWithAuth('/api/org/hr-managers'),
+        fetchWithAuth('/api/org/hr'),
         fetchWithAuth('/api/org/ssh-keys'),
       ])
 

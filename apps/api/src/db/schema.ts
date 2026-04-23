@@ -13,9 +13,12 @@ export const organizations = pgTable('organizations', {
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   organizationId: integer('organization_id').notNull().references(() => organizations.id),
+  name: varchar('name', { length: 255 }).notNull().default(''),
   email: varchar('email', { length: 255 }).notNull(),
   firebaseUid: varchar('firebase_uid', { length: 128 }).notNull().unique(),
   role: varchar('role', { length: 50 }).notNull().default('employee'),
+  isDisabled: boolean('is_disabled').notNull().default(false),
+  deletedAt: timestamp('deleted_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
